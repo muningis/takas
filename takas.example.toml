@@ -1,0 +1,12 @@
+# Copy to takas.toml (gitignored) and edit. Every key is optional.
+
+# Where your runs start (lat, lon). The map graph covers home ± radius_km; rebuild after changing it.
+home = [54.6859, 25.2877]   # Cathedral Square, Vilnius
+radius_km = 15
+
+[features]
+plan = false                # Plan day tab: read a training-plan file, see docs/plan.md
+
+[plan]
+# path = "~/training/plan.json"
+# lap_km = 5.0

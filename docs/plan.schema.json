@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/muningis/takas/blob/main/docs/plan.schema.json",
+  "title": "takas training-plan file",
+  "description": "Optional input for the Plan day feature. takas only reads the fields below; anything else in the file is ignored.",
+  "type": "object",
+  "required": ["days"],
+  "properties": {
+    "days": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/day" }
+    }
+  },
+  "$defs": {
+    "day": {
+      "type": "object",
+      "required": ["date", "type", "session"],
+      "properties": {
+        "date": { "type": "string", "format": "date", "description": "YYYY-MM-DD, one entry per day" },
+        "type": {
+          "enum": ["Easy", "Long", "Medium-long", "Threshold", "Hills", "Vert", "Lap-pace",
+                   "SIMULATION", "Test", "RACE", "Rest", "Walk"],
+          "description": "Session kind; decides how the day becomes a route request (docs/plan.md)"
+        },
+        "session": { "type": "string", "description": "Short name, e.g. \"Hills 6×2 min\" or \"Long trail 30 km\"" },
+        "structure": { "type": "string", "description": "Free text; parsed for warm-up/cool-down minutes, laps and gain targets" },
+        "km": { "type": ["number", "null"], "minimum": 0 },
+        "minutes": { "type": ["number", "null"], "minimum": 0 },
+        "pace": { "type": "string", "description": "e.g. \"6:30–7:05/km\"; the mean sets the time estimate" }
+      }
+    }
+  }
+}

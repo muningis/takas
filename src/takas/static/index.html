@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>takas — Vilnius routes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="/static/design.css">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<aside id="panel">
+  <header class="mast">
+    <div class="kicker">Vilnius · route generator · local data</div>
+    <h1>Takas</h1>
+  </header>
+  <div id="banner" class="prestart" hidden></div>
+
+  <section class="blk" id="settings">
+    <div class="label">Start &amp; warm-up walk</div>
+    <div class="startrow"><b id="start-info"></b><button id="reset-home" class="btn-outline" type="button">Home</button></div>
+    <p class="note">Click the map or drag the pin to move the start.</p>
+    <label class="fld"><span>Walk up to (min)</span><input id="walk-min" type="number" min="0" max="60" step="5" value="20"></label>
+    <label class="chk"><input id="loops-walk" type="checkbox"> Loops may start further away too</label>
+    <p class="note">Hill repeats may always start this far away. 0 turns the walk off.</p>
+  </section>
+
+  <section class="blk">
+    <nav id="tabs">
+      <button type="button" data-tab="loop" aria-pressed="true">Loop</button>
+      <button type="button" data-tab="hills" aria-pressed="false">Hills</button>
+      <button type="button" data-tab="day" aria-pressed="false">Plan day</button>
+    </nav>
+
+    <form id="form-loop" data-tab="loop">
+      <label class="fld"><span>Distance (km)</span><input name="km" type="number" step="0.1" min="1" max="100" value="10"></label>
+      <label class="fld"><span>Surface</span>
+        <select name="profile"><option>road</option><option selected>mixed</option><option>trail</option></select></label>
+      <label class="fld"><span>Terrain</span>
+        <select name="terrain"><option value="any">any</option><option value="flat">flat</option><option value="hilly">hilly</option></select></label>
+      <label class="fld"><span>Gain target (m)</span><input name="gain_target" type="number" min="0" step="10" placeholder="—"></label>
+      <label class="chk"><input name="lit" type="checkbox"> Prefer lit streets</label>
+      <button class="btn" type="submit">Generate loops</button>
+    </form>
+
+    <form id="form-hills" data-tab="hills" hidden>
+      <label class="fld"><span>Repeats</span><input name="reps" type="number" min="1" max="30" value="6"></label>
+      <label class="fld"><span>Minutes up</span><input name="minutes" type="number" step="0.5" min="0.5" value="2"></label>
+      <label class="fld"><span>Uphill pace (/km)</span><input id="uphill-pace" name="uphill_pace" type="text" inputmode="numeric" pattern="\d{1,2}:\d{2}" value="5:30"></label>
+      <label class="chk"><input name="steep" type="checkbox"> Vert: power-hike (≥12 %)</label>
+      <label class="fld"><span>Warm-up (min)</span><input name="warm_min" type="number" value="15"></label>
+      <label class="fld"><span>Cool-down (min)</span><input name="cool_min" type="number" value="10"></label>
+      <button class="btn" type="submit">Find hill repeats</button>
+    </form>
+
+    <form id="form-day" data-tab="day" hidden>
+      <label class="fld"><span>Date</span><input name="date" type="date"></label>
+      <button class="btn" type="submit">Load plan day</button>
+    </form>
+    <div class="statusrow"><span class="label">Results</span><span id="status"></span></div>
+  </section>
+
+  <div id="day-info" aria-live="polite"></div>
+  <div id="notes"></div>
+  <section class="blk" id="results">
+    <div class="label">Candidates</div>
+    <div id="cards" aria-live="polite"></div>
+    <div id="profile"></div>
+  </section>
+  <footer>Elevation FABDEM V1-2 (CC BY-NC-SA 4.0) · Map data © OpenStreetMap contributors (ODbL)</footer>
+</aside>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

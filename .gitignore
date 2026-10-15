@@ -1,0 +1,14 @@
+data/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.part
+# personal settings: your start point and private plan path
+takas.toml
+# agent scratch (handovers, plans) may quote personal values; only the check config is shared
+.claude/*
+!.claude/ratchet/
+.claude/ratchet/*
+!.claude/ratchet/config.json

@@ -1,0 +1,247 @@
+/* design.css — monochrome ledger design system: one ink on paper, heavy grotesk numerals,
+   hairline grid, mono labels. Meaning comes from ink density and line style, not hue.
+   Fonts (Archivo, JetBrains Mono) are self-hosted in fonts/ and declared in style.css.
+*/
+
+/* ───────────── 1. Tokens ───────────── */
+:root{
+  /* ink: one colour on paper */
+  --bg:#ffffff; --fg:#0b0b0b; --muted:#6f6f6f; --line:#e4e4e4; --tint:#f1f1f1; --tint2:#d9d9d9;
+  color-scheme:light;
+
+  /* families */
+  --display:"Archivo","Helvetica Neue",Arial,system-ui,sans-serif;
+  --body:"Archivo","Helvetica Neue",Arial,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+
+  /* type roles (use with `font:`; pair with the tracking token) */
+  --t-hero:900 clamp(2.4rem,8vw,5.2rem)/.88 var(--display);     --tr-hero:-.045em;
+  --t-section:900 clamp(1.8rem,5vw,2.8rem)/1 var(--display);    --tr-section:-.04em;
+  --t-title:900 clamp(1.7rem,6vw,2.3rem)/.98 var(--display);    --tr-title:-.035em;
+  --t-box:900 1.3rem/1 var(--display);                          --tr-box:-.03em;
+  --t-name:800 1.25rem/1.1 var(--display);                      --tr-name:-.02em;
+  --t-heading:800 1.05rem/1.2 var(--display);                   --tr-heading:-.01em;
+  --t-figure:800 1.02rem var(--display);                        --tr-figure:-.01em;
+  --t-kicker:600 .72rem var(--mono);                            --tr-kicker:.14em;
+  --t-label:600 .66rem var(--mono);                             --tr-label:.1em;
+  --t-tag:600 .58rem/1.4 var(--mono);
+
+  /* shape */
+  --r-tag:2px; --r-cell:4px; --r-box:6px; --r-pill:999px;
+  --rule-hair:1px; --rule-mid:1.5px; --rule-strong:2px; --rule-section:3px;
+
+  /* layout */
+  --page-max:1180px; --side:360px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b0b0b; --fg:#f4f4f4; --muted:#8c8c8c; --line:#232323; --tint:#171717; --tint2:#2c2c2c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b0b0b; --fg:#f4f4f4; --muted:#8c8c8c; --line:#232323; --tint:#171717; --tint2:#2c2c2c; color-scheme:dark}
+
+/* ───────────── 2. Base ───────────── */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:var(--fg);text-underline-offset:3px;text-decoration-thickness:1px}
+a.search{color:var(--muted)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:var(--rule-strong) solid var(--fg);outline-offset:2px}
+.num,.tab{font-variant-numeric:tabular-nums}
+
+/* ───────────── 3. Page layout ───────────── */
+.wrap{--gl:max(16px,env(safe-area-inset-left,0px));--gr:max(16px,env(safe-area-inset-right,0px));
+  max-width:var(--page-max);margin:0 auto;padding-left:var(--gl);padding-right:var(--gr);padding-block:28px 64px;
+  display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
+.main{display:grid;grid-template-columns:minmax(0,1fr) var(--side);gap:32px;align-items:start}
+@media (max-width:960px){.main{grid-template-columns:minmax(0,1fr)}}
+
+/* ───────────── 4. Type roles ───────────── */
+.kicker{font:var(--t-kicker);letter-spacing:var(--tr-kicker);text-transform:uppercase;color:var(--muted)}
+h1,.hero{font:var(--t-hero);letter-spacing:var(--tr-hero);margin:0;text-transform:uppercase;text-wrap:balance}
+.section-title{font:var(--t-section);letter-spacing:var(--tr-section);margin:0;text-transform:uppercase}
+.eyebrow{font:600 .68rem var(--mono);letter-spacing:var(--tr-label);text-transform:uppercase;color:var(--muted)}
+.label{font:var(--t-label);letter-spacing:var(--tr-label);text-transform:uppercase;color:var(--muted)}
+.heading{font:var(--t-heading);letter-spacing:var(--tr-heading);margin:0;text-transform:uppercase}
+.note{font-size:.88rem;color:var(--muted);margin:0}
+
+/* ───────────── 5. Header strip ───────────── */
+header{display:grid;gap:18px}
+.races{display:flex;flex-wrap:wrap;gap:0;border-top:var(--rule-strong) solid var(--fg)}
+.race{display:grid;gap:2px;padding:10px 24px 0 0;min-width:0}
+.race span{font:600 .7rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.race b{font:var(--t-name);letter-spacing:var(--tr-name)}
+.race .cd{font:600 .74rem var(--mono);color:var(--fg)}
+
+/* ───────────── 6. Sticky nav + buttons ───────────── */
+.navbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);
+  margin-left:calc(-1 * var(--gl));margin-right:calc(-1 * var(--gr));padding:8px var(--gr) 8px var(--gl);
+  border-bottom:var(--rule-hair) solid var(--line);display:flex;gap:8px;align-items:center}
+nav.months{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+nav.months::-webkit-scrollbar{display:none}
+nav.months button{border:0;background:none;cursor:pointer;padding:6px 10px;border-radius:var(--r-pill);display:grid;justify-items:center;line-height:1.1;white-space:nowrap;
+  font:800 .9rem var(--display);letter-spacing:.02em;text-transform:uppercase}
+nav.months button small{font:400 .64rem var(--mono);color:var(--muted);letter-spacing:0;text-transform:none}
+nav.months button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+nav.months button[aria-pressed="true"] small{color:var(--bg);opacity:.7}
+.todaybtn,.btn-outline{border:var(--rule-mid) solid var(--fg);background:none;border-radius:var(--r-pill);padding:6px 12px;
+  font:700 .78rem var(--display);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;flex:none}
+
+/* ───────────── 7. Calendar grid + day cell ───────────── */
+.monthhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px;margin-bottom:12px}
+.monthhead h2{font:var(--t-section);letter-spacing:var(--tr-section);margin:0;text-transform:uppercase}
+.monthhead .tot{font:600 .8rem var(--mono);color:var(--muted)}
+.monthhead .tot b{color:var(--fg);font-weight:600}
+.grid{display:grid;grid-template-columns:40px repeat(7,minmax(0,1fr)) 52px;gap:4px}
+.dh{font:600 .66rem var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--muted);padding:0 2px 4px}
+.wk,.wkm{display:grid;align-content:center;justify-items:center;text-align:center;line-height:1.05;font-variant-numeric:tabular-nums}
+.wk b{font:800 1rem var(--display)}
+.wkm b{font:900 1.25rem var(--display);letter-spacing:-.03em}
+.wk span,.wkm span{font:400 .6rem var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.wkm .act{font:600 .62rem var(--mono);color:var(--fg);text-transform:none;letter-spacing:0;margin-top:2px}
+
+.cell{min-height:96px;border-radius:var(--r-cell);padding:7px 8px;display:flex;flex-direction:column;gap:3px;cursor:pointer;
+  border:var(--rule-hair) solid var(--line);background:var(--bg);text-align:left;min-width:0;position:relative}
+.cell .d{font:600 .72rem var(--mono);display:flex;justify-content:space-between;align-items:flex-start;gap:4px}
+.cell .t{font:800 .92rem/1.08 var(--display);letter-spacing:-.01em;overflow-wrap:anywhere}
+.cell .k{font:900 1.05rem var(--display);letter-spacing:-.02em;margin-top:auto;font-variant-numeric:tabular-nums}
+.cell .badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 3px;align-items:center}
+.t .abbr{display:none}
+
+/* cell states */
+.cell.out{opacity:.32}
+.cell.sel{box-shadow:0 0 0 var(--rule-strong) var(--fg) inset}
+.cell.today .d span:first-child{background:var(--fg);color:var(--bg);border-radius:var(--r-pill);padding:0 6px}
+.cell.st-missed .k{text-decoration:line-through;text-decoration-thickness:2px;opacity:.55}
+.cell.st-missed .a{color:var(--muted)}
+
+/* run mark: ✓ on plan · ↓ short · ↑ long · ✕ missed · + extra · ! off target */
+.cell .a{font:600 .68rem/1.15 var(--mono);display:flex;gap:3px;align-items:baseline;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cell .a .sym{font-weight:700}
+.cell .a .fl{font-weight:800}
+
+/* ───────────── 8. Ink density: session load ─────────────
+   0 empty → 1 tint → 2 darker tint → 3 stripes → 4 solid */
+.ink-0,.ty-Rest,.ty-Walk{background:var(--bg);color:var(--muted)}
+.ty-Rest .t,.ty-Walk .t,.ink-0 .t{font-weight:500}
+.ink-1,.ty-Easy{background:var(--tint)}
+.ink-2,.ty-Long,.ty-Medium-long{background:var(--tint2);border-color:var(--tint2)}
+.ink-3,.ty-Threshold,.ty-Hills,.ty-Vert,.ty-Lap-pace,.ty-Test{background:repeating-linear-gradient(135deg,var(--tint2) 0 2px,var(--bg) 2px 7px);border-color:var(--fg)}
+.ink-3.tentative,.ty-Test{border-style:dashed}
+.ink-4,.ty-SIMULATION,.ty-RACE{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.ink-4 .todo,.ty-SIMULATION .todo,.ty-RACE .todo{background:var(--bg);color:var(--fg)}
+.ink-4 .shoe,.ty-SIMULATION .shoe,.ty-RACE .shoe{color:var(--bg);opacity:.75}
+.ink-4 .a,.ty-SIMULATION .a,.ty-RACE .a{color:var(--bg)}
+.ty-RACE .t{text-transform:uppercase}
+
+/* ───────────── 9. Tags and pills ───────────── */
+.gym{display:inline-block;font:var(--t-tag);border:1px solid currentColor;border-radius:var(--r-tag);padding:0 3px;letter-spacing:.02em}
+.shoe{display:inline-block;font:700 .58rem/1.4 var(--mono);letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+.todo{display:inline-block;font:var(--t-tag);background:var(--fg);color:var(--bg);border-radius:var(--r-tag);padding:0 4px}
+.chg{display:inline-block;font:700 .58rem/1.4 var(--mono);border:1px dashed currentColor;border-radius:var(--r-tag);padding:0 3px}
+.pill{display:inline-block;font:600 .58rem var(--mono);text-transform:uppercase;letter-spacing:.08em;border-radius:var(--r-tag);padding:1px 5px;margin-left:8px;vertical-align:2px;border:1px solid var(--fg)}
+.p-keep{border-color:var(--line);color:var(--muted)}
+.p-adjust{border-color:var(--fg)}
+.p-add,.p-decide{background:var(--fg);color:var(--bg)}
+.p-owned{border-color:var(--fg)}
+.p-retired{border-color:var(--line);color:var(--muted);text-decoration:line-through}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:14px;font:500 .74rem var(--body);color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:var(--r-tag);vertical-align:-3px;margin-right:6px;border:1px solid var(--line)}
+.phone-only{display:none}
+
+/* ───────────── 10. Detail panel ───────────── */
+aside.detail{border-top:var(--rule-section) solid var(--fg);padding-top:14px;display:grid;gap:16px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);scroll-margin-top:72px}
+@media (max-width:960px){aside.detail{position:static}}
+.detail h3{font:var(--t-title);letter-spacing:var(--tr-title);margin:6px 0 0;text-wrap:balance}
+.detail .struct{margin:0;font-size:1rem}
+
+/* fact list */
+dl.facts{display:grid;grid-template-columns:auto 1fr;gap:0;margin:0;border-top:1px solid var(--line)}
+dl.facts dt,dl.facts dd{padding:7px 0;border-bottom:1px solid var(--line)}
+dl.facts dt{font:600 .66rem/1.9 var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding-right:16px}
+dl.facts dd{margin:0;font:700 .92rem var(--body);min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+/* stat grid */
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:0;border-top:1px solid var(--line)}
+.stats div{display:grid;gap:1px;padding:7px 8px 7px 0;border-bottom:1px solid var(--line);min-width:0}
+.stats span{font:600 .6rem var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.stats b{font:var(--t-figure);letter-spacing:var(--tr-figure);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.stats b small{font:500 .7rem var(--mono);color:var(--muted);letter-spacing:0}
+
+/* block headings with a status label */
+.happened,.ci{display:grid;gap:10px}
+.ci{gap:8px}
+.happened h4,.ci h4,.str h4{font:var(--t-heading);letter-spacing:var(--tr-heading);margin:0;text-transform:uppercase;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.str h4{display:block;margin:0 0 8px}
+.str h4 .rx{text-transform:none}
+.happened h4 .stt,.ci h4 .stt{font:600 .66rem var(--mono);letter-spacing:.1em;color:var(--muted)}
+.verdict{margin:0;font-size:.94rem}
+.run{display:grid;gap:4px}
+.run .rn{font:600 .66rem var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.ci .sum{margin:0;font-size:.9rem;color:var(--muted)}
+ol.qs{margin:0;padding-left:1.3em;display:grid;gap:4px;font-size:.92rem}
+
+/* exercise list */
+ul.ex{list-style:none;margin:0;padding:0;display:grid;border-top:1px solid var(--line)}
+ul.ex li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:baseline;border-bottom:1px solid var(--line);padding:8px 0}
+ul.ex .rx{font:600 .76rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+ul.ex .v{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.8rem}
+
+/* checklist */
+ul.todos{margin:0;padding:0;list-style:none;display:grid;gap:8px;font-size:.92rem}
+ul.todos li{padding-left:22px;position:relative}
+ul.todos li::before{content:"";position:absolute;left:0;top:.3em;width:12px;height:12px;border:var(--rule-mid) solid var(--fg);border-radius:var(--r-tag)}
+
+/* ───────────── 11. Notes and callouts ───────────── */
+.chgnote{margin:0;font-size:.88rem;border:1px dashed var(--fg);border-radius:var(--r-cell);padding:8px 10px}
+.chgnote b{font:600 .66rem var(--mono);text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:2px}
+.ans{margin:0;font-size:.92rem;border-left:var(--rule-section) solid var(--fg);padding:2px 0 2px 10px}
+.ans b{display:block;font:600 .66rem var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.ans.none{border-left-color:var(--line);color:var(--muted)}
+.eat{margin:0;font-size:.9rem}
+.eat b{display:block;font:600 .66rem var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:2px}
+.prestart{border:var(--rule-strong) solid var(--fg);border-radius:var(--r-box);padding:14px 16px;margin-bottom:22px;display:grid;gap:10px}
+.prestart h3{font:var(--t-box);letter-spacing:var(--tr-box);margin:0;text-transform:uppercase}
+.prestart p{margin:0;font-size:.92rem}
+
+/* ───────────── 12. Reference sections ───────────── */
+section.lib{display:grid;gap:14px;border-top:var(--rule-section) solid var(--fg);padding-top:14px}
+section.lib>h2{font:var(--t-section);letter-spacing:var(--tr-section);margin:0;text-transform:uppercase}
+section.lib>p{margin:0;color:var(--muted);max-width:68ch}
+.supgrid{display:grid;border-top:1px solid var(--line)}
+.sup{display:grid;grid-template-columns:180px 210px minmax(0,1fr);gap:4px 20px;padding:12px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.sup .w{font:600 .66rem var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.sup .n{font:800 1rem var(--display)}
+.sup .n small{display:block;font:500 .74rem var(--mono);color:var(--muted);margin-top:2px}
+.sup .r{font-size:.9rem;min-width:0}
+.libgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px}
+.libcard{min-width:0}
+.libcard p{margin:0 0 10px;font-size:.84rem;color:var(--muted)}
+
+/* ───────────── 13. Phone (≤ 640px) ─────────────
+   Grid shows date + km only; ink density carries the session type. */
+@media (max-width:640px){
+  .wrap{gap:22px;padding-block:20px 48px}
+  .grid{grid-template-columns:18px repeat(7,minmax(0,1fr)) 28px;gap:4px}
+  .dh{font-size:.58rem;letter-spacing:.02em;padding:0 0 2px;text-align:center}
+  .cell{min-height:58px;padding:6px 2px 12px;gap:0;align-items:center;justify-content:space-between;text-align:center;border-radius:var(--r-box)}
+  .cell .d{justify-content:center;font-size:.66rem;line-height:1}
+  .cell.today .d span:first-child{padding:1px 5px}
+  .cell .badges,.cell .t{display:none}
+  .cell .a{position:absolute;bottom:2px;right:4px;font-size:.62rem}
+  .cell .a .num{display:none}
+  .cell .k{font:800 1rem/1 var(--display);letter-spacing:-.04em;margin:0;white-space:nowrap}
+  .cell .k .u{display:none}
+  .ty-Rest .d,.ty-Walk .d,.ink-0 .d{opacity:.7}
+  .cell.todo-dot::after{content:"";position:absolute;bottom:4px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:.8}
+  .wk b{font-size:.72rem;color:var(--muted);font-weight:700}
+  .wkm b{font-size:.82rem}
+  .wk span,.wkm span{display:none}
+  .wkm span.act{display:block;font-size:.58rem;color:var(--muted)}
+  .sup{grid-template-columns:minmax(0,1fr)}
+  .race{padding-right:18px}
+  .legend .phone-only{display:block;flex-basis:100%;color:var(--fg)}
+}
+
+/* ───────────── 14. Motion ───────────── */
+@media (prefers-reduced-motion:no-preference){.cell{transition:transform .12s}.cell:active{transform:scale(.97)}}

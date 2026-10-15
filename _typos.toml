@@ -1,0 +1,7 @@
+[default]
+# Unicode codepoint literals in @font-face unicode-range (U+0100-02BA), not words
+extend-ignore-re = ["U\\+[0-9A-Fa-f]{2,6}(-[0-9A-Fa-f]{2,6})?"]
+
+[default.extend-words]
+# OSM XML element name (<nd ref=...>), not a typo of "and"
+nd = "nd"

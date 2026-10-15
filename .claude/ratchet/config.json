@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "checks": [
+    { "id": "typos", "kind": "command", "run": "typos src tests README.md", "gate": ["verify"], "timeout": 60 },
+    { "id": "gitleaks", "kind": "command", "run": "gitleaks dir --no-banner --redact .", "gate": ["verify"], "timeout": 120 },
+    { "id": "ruff", "kind": "command", "run": "uvx ruff check src tests", "when": ["**/*.py"], "gate": ["verify"], "timeout": 120 },
+    { "id": "pytest", "kind": "command", "run": "uv run pytest -q", "when": ["src/**", "tests/**", "pyproject.toml"], "gate": ["verify"], "timeout": 300 },
+    { "id": "semgrep", "kind": "command", "run": "semgrep scan --config auto --error --quiet --exclude data --exclude .venv src tests", "gate": ["verify"], "timeout": 600 },
+    { "id": "routes-runnable", "kind": "manual",
+      "instruct": "Run `uv run takas serve`, open http://127.0.0.1:8742, generate a few loops and a hills session on ground you know. Judge whether you would actually run them: sidewalks not carriageways, sane crossings, no private yards or dead-end spurs." }
+  ]
+}
