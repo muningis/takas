@@ -28,6 +28,7 @@ DATA = Path(os.environ.get("TAKAS_DATA", ROOT / "data"))
 OSM_DIR = DATA / "osm"
 DEM_DIR = DATA / "dem"
 BUILD_DIR = DATA / "build"
+LOG_DIR = Path(os.environ.get("TAKAS_LOGS", DATA / "logs"))
 PBF_URL = "https://download.geofabrik.de/europe/lithuania-latest.osm.pbf"
 FABDEM_ZIP_URL = "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/N50E020-N60E030_FABDEM_V1-2.zip"
 FABDEM_MEMBER = "N54E025_FABDEM_V1-2.tif"

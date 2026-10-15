@@ -19,6 +19,9 @@ HIGHWAY_CLASS = {
     "steps": "steps",
 }
 CARRIAGEWAY = {"res", "tert", "sec"}
+# streets a runner has to cross; driveways and parking aisles (service) don't count
+ROAD_HW = {"residential", "living_street", "unclassified", "tertiary", "tertiary_link", "secondary",
+           "secondary_link", "primary", "primary_link", "trunk", "trunk_link", "motorway", "motorway_link"}
 PAVED = {"asphalt", "paved", "concrete", "paving_stones", "sett", "concrete:plates", "concrete:lanes",
          "cobblestone", "metal", "wood", "bricks", "chipseal"}
 UNPAVED = {"unpaved", "gravel", "fine_gravel", "dirt", "ground", "earth", "grass", "sand", "mud",
@@ -64,6 +67,9 @@ def way_rules(tags) -> dict | None:
         "lit": tags.get("lit") in ("yes", "24/7", "automatic", "sunset-sunrise"),
         "bridge": tags.get("bridge") not in (None, "no"),
         "tunnel": tags.get("tunnel") not in (None, "no"),
+        "onroad": hw in ROAD_HW,
+        "crossing": "crossing" in (tags.get("footway"), tags.get("cycleway"), tags.get("path"))
+                    or tags.get("crossing") not in (None, "no"),
         "fwd": fwd,
         "rev": rev,
     }
@@ -80,10 +86,19 @@ def _read_ways(pbf, bbox):
         .with_filter(osmium.filter.KeyFilter("highway"))
     )
     ways = []
+    # node ref -> street branches leaving it (walkable or not): 2 where a street runs through, 1 where one
+    # ends, so a street continuing as a second way gives 2, a T-junction 3, a crossroads 4
+    branches: dict[int, int] = {}
     for way in fp:
+        if way.tags.get("highway") in ROAD_HW:
+            refs = [nd.ref for nd in way.nodes]
+            for i, ref in enumerate(refs):
+                branches[ref] = branches.get(ref, 0) + (1 if i in (0, len(refs) - 1) else 2)
         attrs = way_rules(way.tags)
         if attrs is None:
             continue
+        if attrs["onroad"]:
+            attrs["street"] = way.tags.get("name") or f"way/{way.id}"
         run = []
         for nd in way.nodes:
             if not nd.location.valid():
@@ -97,11 +112,15 @@ def _read_ways(pbf, bbox):
                 run = []
         if len(run) > 1:
             ways.append((run, attrs))
-    return ways
+    return ways, branches
 
 
-def _split_edges(ways):
-    """Cut way runs at junctions into edges; guarantee at most one edge per node pair."""
+def _split_edges(ways, branches=None):
+    """Cut way runs at junctions into edges; guarantee at most one edge per node pair. An edge is a
+    street crossing when its way is tagged as one, when a path touches a street part-way along, or
+    when a street passes a crossroads part-way along (e.g. with a carriageway dropped for having
+    separate sidewalks)."""
+    branches = branches or {}
     count: dict[int, int] = {}
     for run, _ in ways:
         for ref, _, _ in run:
@@ -133,7 +152,9 @@ def _split_edges(ways):
         for i in range(1, len(run)):
             if count[run[i][0]] >= 2 or i == len(run) - 1:
                 seg = run[start : i + 1]
-                add(seg[0][0], seg[-1][0], [p[1] for p in seg], [p[2] for p in seg], attrs)
+                limit = 4 if attrs["onroad"] else 1
+                crosses = attrs["crossing"] or any(branches.get(p[0], 0) >= limit for p in seg[1:-1])
+                add(seg[0][0], seg[-1][0], [p[1] for p in seg], [p[2] for p in seg], {**attrs, "crosses": crosses})
                 start = i
     return edges
 
@@ -199,8 +220,8 @@ def build_graph(osm_path, dem_path, out_dir, bbox=config.BBOX, dem_source="fabde
     t0 = time.time()
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    ways = _read_ways(osm_path, bbox)
-    edges = _split_edges(ways)
+    ways, branches = _read_ways(osm_path, bbox)
+    edges = _split_edges(ways, branches)
 
     # compact node ids, coordinates from edge endpoints
     ids: dict[int, int] = {}
@@ -262,6 +283,7 @@ def build_graph(osm_path, dem_path, out_dir, bbox=config.BBOX, dem_source="fabde
         maxdown_f[k] = max(0.0, -gr.min()) if len(gr) else 0.0
     nz = dem.sample(nodes[:, 0], nodes[:, 1])
     cls = np.array([CLASSES.index(e[4]["cls"]) for e in edges], dtype="int8")
+    street_ids: dict[str, int] = {}
     flag = lambda key: np.array([e[4][key] for e in edges], dtype=bool)
 
     np.savez(
@@ -270,7 +292,11 @@ def build_graph(osm_path, dem_path, out_dir, bbox=config.BBOX, dem_source="fabde
         eu=eu.astype("int32"), ev=ev.astype("int32"), edge_len=length, edge_cls=cls,
         edge_paved=flag("paved"), edge_lit=flag("lit"), edge_bridge=flag("bridge"),
         edge_tunnel=flag("tunnel"), edge_fwd=fw[keep_edge], edge_rev=rv[keep_edge],
-        edge_green=green, climb_f=climb_f, desc_f=desc_f, maxup_f=maxup_f, maxdown_f=maxdown_f,
+        edge_green=green, edge_crossing=flag("crosses"), edge_onroad=flag("onroad"),
+        node_street_branches=np.array([min(branches.get(int(r), 0), 9) for r in node_refs], dtype="int8"),
+        edge_street=np.array([street_ids.setdefault(e[4]["street"], len(street_ids)) if e[4]["onroad"] else -1
+                              for e in edges], dtype="int32"),
+        climb_f=climb_f, desc_f=desc_f, maxup_f=maxup_f, maxdown_f=maxdown_f,
         geom_off=off, geom_lat=np.concatenate(glat), geom_lon=np.concatenate(glon),
         geom_z=np.concatenate(gz).astype("float32"), geom_s=np.concatenate(gs).astype("float32"),
     )

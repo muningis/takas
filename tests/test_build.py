@@ -176,3 +176,22 @@ def test_route_gain_uses_hysteresis(graph):
     st = g.route_stats(arcs)
     assert st["gain"] == pytest.approx(0.08 * 400, abs=2.5)
     assert st["km"] == pytest.approx(0.6, rel=0.02)
+
+
+def test_street_crossing_attributes(graph):
+    g, ids = graph, graph.test_ids
+    branches = lambda ref: g.node_street_branches[g.node_index[ref]]
+    m = g.test_marks
+    assert branches(ids[(14, 10)]) == 4  # crossroads
+    assert branches(m["cross15"]) == 2  # footway B meets street 15 part-way along it
+    assert branches(m["d_split"]) == 2  # one street continuing as a second way
+    assert branches(m["d_tee"]) == 3  # T-junction
+    # footways: only the tagged crossing segment of C is a crossing
+    foot = np.nonzero(g.edge_crossing & (g.edge_cls == 0))[0]
+    assert len(foot) == 1 and g.edge_len[foot[0]] == pytest.approx(100, abs=2)
+    assert not g.edge_onroad[foot[0]]
+    # a column street running past the dropped row-15 carriageway crosses it part-way along
+    col = [k for k in np.nonzero(g.edge_crossing & (g.edge_cls == 1))[0]
+           if {g.node_ref[g.eu[k]], g.node_ref[g.ev[k]]} == {ids[(4, 14)], ids[(4, 16)]}]
+    assert col
+    assert g.edge_onroad[g.edge_cls == 1].all() and not g.edge_onroad[g.edge_cls == 0].any()

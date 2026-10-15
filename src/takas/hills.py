@@ -6,7 +6,6 @@ import numpy as np
 from scipy.sparse.csgraph import dijkstra
 
 from . import config, elevation
-from . import walk as walking
 from .graph import Graph
 from .loops import payload, shortest_path
 
@@ -22,7 +21,7 @@ def target_length(minutes: float, kind: str, grade: float) -> float:
 
 
 def _chain_ok(g: Graph, a: int, steps_ok: bool) -> bool:
-    if g.arc_bt[a]:
+    if g.arc_bt[a] or g.arc_crossing[a]:
         return False
     return steps_ok or g.arc_cls[a] != 5
 
@@ -47,7 +46,8 @@ def find_climbs(
     found: list[dict] = []
     for f in feet:
         out = range(g.indptr[f], g.indptr[f + 1])
-        if not any(arc_grade[a] >= 0.75 * min_grade and _chain_ok(g, a, False) for a in out):
+        # a hill may ease in: the first step only has to be more than a dip; the average decides
+        if not any(arc_grade[a] >= 0.5 * min_grade and _chain_ok(g, a, False) for a in out):
             continue
         z0 = float(g.node_elev[f])
         best = None
@@ -59,6 +59,13 @@ def find_climbs(
             for a in range(g.indptr[node], g.indptr[node + 1]):
                 if not _chain_ok(g, a, False):
                     continue
+                # a repeat never crosses a street. Along one street, a split or a T-junction is fine (run on the
+                # far side); a crossroads, turning into another street or a path touching a street is not.
+                if arcs:
+                    p = arcs[-1]
+                    same = g.arc_onroad[p] and g.arc_onroad[a] and g.arc_street[p] == g.arc_street[a] >= 0
+                    if g.node_street_branches[node] >= (4 if same else 1):
+                        continue
                 nxt = int(g.arc_v[a])
                 if nxt == f or any(g.arc_u[x] == nxt for x in arcs):
                     continue
@@ -74,7 +81,8 @@ def find_climbs(
                 na = arcs + [a]
                 z1 = float(g.node_elev[nxt])
                 avg = (z1 - z0) / nl
-                if nl >= lo and min_grade <= avg <= config.MAX_GRADE[kind]:
+                # dips are allowed part-way, but a repeat tops out on a climbing step, not a flat side path
+                if nl >= lo and min_grade <= avg <= config.MAX_GRADE[kind] and gr >= 0.5 * min_grade:
                     t = fixed or target_length(minutes, kind, avg)
                     off = abs(nl - t) / t
                     if (fixed or off <= tolerance) and (best is None or off < best[0]):
@@ -136,7 +144,9 @@ def _detour(g: Graph, cost, a: int, b: int, target_m: float):
                 break
             L = float(g.arc_len[arcs].sum())
             ret = len(arcs) - len(set(g.arc_edge[arcs].tolist()))
-            key = (abs(L - target_m) / target_m + 0.3 * ret / max(len(arcs), 1), arcs, L)
+            # falling short is what the detour is there to fix, so a short route loses to a long one
+            short = 1.0 if L < 0.85 * target_m else 0.0
+            key = (abs(L - target_m) / target_m + short + 0.3 * ret / max(len(arcs), 1), arcs, L)
             if best is None or key[0] < best[0]:
                 best = key
             if abs(L - target_m) / target_m < 0.03:
@@ -154,55 +164,33 @@ def _add_segment(g: Graph, arcs: list, segs: list, name: str, part) -> None:
     arcs.extend(part)
 
 
-def _walk_origin(g: Graph, s: int, foot: int, w: float, walk_max_m: float):
-    """Run start W on the walking path home -> foot, about one warm-up before the foot (walk capped)."""
-    path = walking.walk_path(g, s, foot)
-    if not path:
-        return s, []
-    cum = np.cumsum(g.arc_len[path])
-    allowed = min(float(cum[-1]) - w, walk_max_m)
-    k = int(np.searchsorted(cum, allowed, side="right"))
-    return (int(g.arc_v[path[k - 1]]), path[:k]) if k else (s, [])
-
-
 def hills_session(
     g: Graph, reps: int, minutes: float, min_grade: float, kind: str, start=None,
-    warm_min: float = 15.0, cool_min: float = 10.0, profile: str = "mixed",
-    warmup_m: tuple[float, float] | None = None, pace: float | None = None, walk_max_m: float = 0.0,
-    uphill_pace: float | None = None,
+    warmup_max_m: float = 3000.0, cool_min: float = 10.0, profile: str = "mixed",
+    pace: float | None = None, uphill_pace: float | None = None,
 ) -> dict:
+    """Warm-up (the way to the foot, run or walked, within warmup_max_m) -> reps x (run up M minutes,
+    walk down) -> cool-down of cool_min minutes back to the start."""
     if g.meta.get("degraded"):
         raise DegradedDem("hill finder refuses to run on the Copernicus (canopy) DEM; use FABDEM")
     s = g.snap(*(start or config.HOME))
-    w = warm_min * 60.0 / config.EASY_PACE * 1000.0
     cd = cool_min * 60.0 / config.EASY_PACE * 1000.0
-    # a foot closer than the warm-up is fine: the warm-up loops before reaching it
-    window = warmup_m or (0.25 * w, 1.6 * w + walk_max_m)
-    # the walk makes every foot inside the window equally reachable: no distance penalty, more candidates to re-rank
-    climbs = find_climbs(g, start, minutes, min_grade, kind, warmup_m=window,
-                         ideal_foot=window[1] if walk_max_m else w, top=6 if walk_max_m else 3,
-                         uphill_pace=uphill_pace)
+    climbs = find_climbs(g, start, minutes, min_grade, kind, warmup_m=(0.0, warmup_max_m),
+                         ideal_foot=warmup_max_m, top=6, uphill_pace=uphill_pace)
     cost = g.cost(profile, "any")
     cands, notes = [], []
     for c in climbs:
         foot = c["foot_node"]
-        origin, walk_arcs = s, []
-        if walk_max_m > 0 and c["dist_from_start"] > w:
-            origin, walk_arcs = _walk_origin(g, s, foot, w, walk_max_m)
-        warm = shortest_path(g, cost, origin, foot)
-        back = shortest_path(g, cost, foot, origin)
+        warm = shortest_path(g, cost, s, foot)
+        back = shortest_path(g, cost, foot, s)
         down = g.arc_rev[c["arcs"]][::-1]
         if warm is None or back is None or (down < 0).any():
             continue
-        if float(g.arc_len[warm].sum()) < 0.85 * w:
-            warm = _detour(g, cost, origin, foot, w) or warm
-        # the session is set by time, not distance: warm-up and cool-down fill their minutes at easy pace
         cool = back
         if float(g.arc_len[back].sum()) < 0.85 * cd:
-            cool = _detour(g, cost, foot, origin, cd) or back
+            cool = _detour(g, cost, foot, s, cd) or back
         up_m = float(g.arc_len[c["arcs"]].sum())
-        w_m, c_m = float(g.arc_len[warm].sum()), float(g.arc_len[cool].sum())
-        overrun = max(0.0, w_m - 1.15 * w) / max(w, 1.0) + max(0.0, c_m - 1.15 * cd) / max(cd, 1.0)
+        w_m = float(g.arc_len[warm].sum())
         arcs, segs = [], []
         _add_segment(g, arcs, segs, "warm-up", warm)
         for _ in range(reps):
@@ -216,9 +204,11 @@ def hills_session(
         cand["repeat"] = {"up_m": round(up_m), "up_s": round(minutes * 60), "down_s": round(down_s),
                           "pace": uphill_pace or round(minutes * 60 / up_m * 1000)}
         cand["time_s"] = round(easy_m / 1000.0 * (pace or config.EASY_PACE) + reps * (minutes * 60 + down_s))
-        cand["walk"] = walking.walk_object(g, walk_arcs)
-        wk_km = cand["walk"]["km"] if cand["walk"] else 0.0
-        cand["score"] = round(c["score"] + overrun + walking.PENALTY_PER_KM * wk_km, 3)
+        cand["warmup"] = {"m": round(w_m), "run_s": round(w_m / 1000.0 * config.EASY_PACE),
+                          "walk_s": round(w_m / 1000.0 * config.WALK_PACE)}
+        cand["walk"] = None
+        # of two equally good hills the nearer wins: less getting there, less getting back
+        cand["score"] = round(c["score"] + 0.5 * w_m / max(warmup_max_m, 1.0), 3)
         cand["climb"] = {k: (round(v, 4) if isinstance(v, float) else v) for k, v in c.items()
                          if k not in ("arcs", "foot_node", "top_node")}
         cand["climb"]["reps"] = reps
@@ -228,8 +218,8 @@ def hills_session(
     cands = cands[:3]
     if not cands:
         notes.append(f"no climb with ≥{min_grade * 100:.0f}% grade of ~{target_length(minutes, kind, min_grade):.0f} m "
-                     f"found {window[0] / 1000:.1f}-{window[1] / 1000:.1f} km from the start")
+                     f"within {warmup_max_m / 1000:.1f} km of the start")
     return {"candidates": cands, "notes": notes,
             "start": {"lat": float(g.node_lat[s]), "lon": float(g.node_lon[s]), "node": s},
             "request": {"reps": reps, "minutes": minutes, "min_grade": min_grade, "kind": kind,
-                        "warm_min": warm_min, "cool_min": cool_min, "uphill_pace": uphill_pace}}
+                        "warmup_max_m": warmup_max_m, "cool_min": cool_min, "uphill_pace": uphill_pace}}

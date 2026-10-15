@@ -71,6 +71,15 @@ class Graph:
         self.arc_lit = self.edge_lit[e]
         self.arc_green = self.edge_green[e]
         self.arc_bt = self.edge_bridge[e] | self.edge_tunnel[e]
+        # graphs built before street-crossing data simply have none
+        if not hasattr(self, "edge_crossing"):
+            self.edge_crossing = np.zeros(E, dtype=bool)
+            self.edge_onroad = np.zeros(E, dtype=bool)
+            self.edge_street = -np.ones(E, dtype="int32")
+            self.node_street_branches = np.zeros(self.n_nodes, dtype="int8")
+        self.arc_crossing = self.edge_crossing[e]
+        self.arc_onroad = self.edge_onroad[e]
+        self.arc_street = self.edge_street[e]
         self.arc_grade = (self.arc_climb - self.arc_desc) / np.maximum(self.arc_len, 1.0)
 
     # --- lookups ---------------------------------------------------------

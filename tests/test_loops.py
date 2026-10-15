@@ -86,7 +86,11 @@ def test_fallback_offered_when_target_missed(graph):
 
 
 def test_no_fallback_when_target_met(graph):
-    r = loops.generate_loops(graph, km=4.0, profile="mixed", terrain="hilly", gain_target=20, start=HOME)
+    # a target the hilly loops already reach must not trigger the run-there-and-repeat fallback
+    reach = max(c["gain"] for c in loops.generate_loops(graph, km=4.0, profile="mixed", terrain="hilly",
+                                                        start=HOME)["candidates"])
+    assert reach > 0
+    r = loops.generate_loops(graph, km=4.0, profile="mixed", terrain="hilly", gain_target=0.8 * reach, start=HOME)
     assert r["fallback"] is None
 
 

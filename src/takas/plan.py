@@ -103,17 +103,19 @@ def day_request(day: dict) -> dict:
 
 
 def run_request(g, req: dict, start=None, n: int = 4, walk_max_m: float = 0.0, loops_walk: bool = False,
-                uphill_pace: float | None = None) -> dict:
+                uphill_pace: float | None = None, warmup_max_m: float | None = None) -> dict:
     """Execute a day request against the loaded graph; loop days walk only when loops_walk is set."""
     from . import hills, loops
 
     if req["mode"] == "none":
         return {"candidates": [], "notes": [req["reason"]]}
     if req["mode"] == "hills":
+        # no distance given: the plan's own warm-up minutes, at easy pace, set how far the hill may be
+        warmup_max_m = warmup_max_m or req["warm_min"] * 60 / config.EASY_PACE * 1000
         return hills.hills_session(
             g, reps=req["reps"], minutes=req["minutes"], min_grade=req["min_grade"], kind=req["kind"],
-            start=start, warm_min=req["warm_min"], cool_min=req["cool_min"],
-            pace=req.get("pace"), walk_max_m=walk_max_m, uphill_pace=uphill_pace,
+            start=start, warmup_max_m=warmup_max_m, cool_min=req["cool_min"],
+            pace=req.get("pace"), uphill_pace=uphill_pace,
         )
     return loops.generate_loops(
         g, km=req["km"], profile=req["profile"], terrain=req["terrain"], gain_target=req.get("gain_target"),

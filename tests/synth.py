@@ -9,6 +9,8 @@ Planted features:
   * row 18 is access=private, row 19 is a motorway (both dropped)
   * a parallel path with a bend between (12,12) and (13,12) duplicates a grid edge
   * an isolated footway far away (dropped as non-largest component)
+  * three footways climbing the ramp between rows: A clean, B through a street node (cross15),
+    C with a footway=crossing segment; a named street D with a split point and a T-junction
 """
 from __future__ import annotations
 
@@ -80,8 +82,51 @@ def write_osm(path) -> dict:
             way(row, highway="footway")
         else:
             way(row, highway="residential")
+    # column 15 carries an extra node at (1500, 950) that footway B below shares: a street crossing
+    cross15 = extra(1500, 950)
     for i in range(20):
-        way([node(i, j) for j in range(20)], highway="residential")
+        col = [node(i, j) for j in range(20)]
+        if i == 15:
+            col = col[:10] + [cross15] + col[10:]
+        way(col, highway="residential")
+
+    # hill-repeat footways on the ramp, between the grid rows (no shared nodes with the column streets);
+    # short side paths every 100 m split them into edges, as junctions with other paths do in real data
+    def footway(nds, **tags):
+        way(nds, highway="footway", **tags)
+        for n in nds[1:-1]:
+            la, lo = nodes[n]
+            stub = extra(0, 0)
+            nodes[stub] = (la + 15 * DLAT, lo)  # due north: flat on the east-rising ramp
+            way([n, stub], highway="footway")
+
+    # A: a clean 700 m climb at y=1050
+    footway([node(12, 10)] + [extra(x, 1050) for x in range(1200, 2000, 100)] + [node(19, 10)])
+    # B: at y=950, crossing column street 15 halfway up through cross15
+    footway([node(12, 9)] + [extra(x, 950) for x in (1200, 1300, 1400)] + [cross15]
+            + [extra(x, 950) for x in (1600, 1700, 1800, 1900)] + [node(19, 9)])
+    # C: at y=1150, a tagged crossing segment over a carriageway that is not in the data
+    c1 = [node(12, 11)] + [extra(x, 1150) for x in (1200, 1300, 1400, 1450)]
+    c3 = [extra(x, 1150) for x in (1550, 1600, 1700, 1800, 1900)] + [node(19, 11)]
+    footway(c1)
+    way([c1[-1], c3[0]], highway="footway", footway="crossing")
+    footway(c3)
+    # D: a named street climbing at y~1250, split into two ways at x=1500 (same street continues) and
+    # met by a dead-end side street at x=1700 (a T-junction: runnable on the far side, no crossing)
+    d_split, d_tee = extra(1500, 1250), extra(1700, 1250)
+    way([node(12, 12), extra(1250, 1250), extra(1350, 1250), d_split], highway="residential", name="Testo g.")
+    way([d_split, extra(1600, 1250), d_tee, extra(1800, 1250), node(19, 12)], highway="residential", name="Testo g.")
+    way([d_tee, extra(1700, 1290)], highway="residential", name="Šoninė g.")
+    # F: a street easing into the ramp at y=1350: first step 80 m at 5 % (1170 -> 1250), then 8 %
+    f0 = extra(1170, 1350)
+    way([node(12, 13), f0], highway="footway")
+    f = [f0, extra(1250, 1350)] + [extra(x, 1350) for x in range(1350, 1950, 100)]
+    way(f, highway="residential", name="Lėta g.")
+    for n in f[1:-1]:  # side paths split the street into edges, as junctions do in real data
+        la, lo = nodes[n]
+        stub = extra(0, 0)
+        nodes[stub] = (la + 15 * DLAT, lo)
+        way([n, stub], highway="footway")
 
     # separate sidewalk footway north of the carriageway, 5 m offset
     sw = [node(2, 15), extra(300, 1505), extra(500, 1505), extra(700, 1505), node(8, 15)]
@@ -106,7 +151,7 @@ def write_osm(path) -> dict:
             f.writelines(f'<tag k="{k}" v="{v}"/>' for k, v in tags.items())
             f.write("</way>\n")
         f.write("</osm>\n")
-    return {"ids": ids}
+    return {"ids": ids, "marks": {"cross15": cross15, "d_split": d_split, "d_tee": d_tee}}
 
 
 def write_dem(path, half=1500.0, res=10.0) -> None:

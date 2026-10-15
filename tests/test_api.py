@@ -63,7 +63,7 @@ def test_loop_gain_target_note_and_fallback(client):
 
 
 def test_hills(client):
-    r = client.post("/api/hills", json={"reps": 4, "minutes": 2, "warm_min": 3,
+    r = client.post("/api/hills", json={"reps": 4, "minutes": 2, "warmup_km": 1,
                                         "start": {"lat": HOME[0], "lon": HOME[1]}})
     assert r.status_code == 200
     body = r.json()
@@ -112,20 +112,24 @@ def test_index_served(client):
 
 
 def test_api_walk_object_and_gpx_variants(client):
-    start = {"lat": HOME[0], "lon": HOME[1] - 600 * 0 + (-600 / (111320 * 0.5887))}
-    r = client.post("/api/hills", json={"reps": 3, "minutes": 2, "warm_min": 2,
-                                        "walk_max_min": 10, "start": start})
-    c = r.json()["candidates"][0]
+    # walking to the start is a loop option now; hills have a warm-up distance instead
+    r = client.post("/api/loop", json={"km": 6, "terrain": "hilly", "walk_max_min": 10})
+    c = next(x for x in r.json()["candidates"] if x["walk"])
     w = c["walk"]
-    assert w and set(w) >= {"coords", "km", "time_s", "to"}
+    assert set(w) >= {"coords", "km", "time_s", "to"}
     ns = {"g": "http://www.topografix.com/GPX/1/1"}
     run = ET.fromstring(client.get(f"/api/gpx/{c['id']}").text).findall(".//g:trkpt", ns)
-    assert [float(run[0].attrib["lat"]), float(run[0].attrib["lon"])] == pytest.approx(c["coords"][0], abs=1e-6)
     assert [float(run[0].attrib["lat"]), float(run[0].attrib["lon"])] == pytest.approx(
         [w["to"]["lat"], w["to"]["lon"]], abs=1e-6)
     full = ET.fromstring(client.get(f"/api/gpx/{c['id']}?walk=1").text).findall(".//g:trkpt", ns)
     assert [float(full[0].attrib["lat"]), float(full[0].attrib["lon"])] == pytest.approx(w["coords"][0], abs=1e-6)
     assert len(full) == len(run) + len(w["coords"]) - 1
+
+
+def test_hills_never_walk_to_a_start(client):
+    b = client.post("/api/hills", json={"reps": 3, "minutes": 2, "warmup_km": 2, "walk_max_min": 20}).json()
+    assert b["candidates"] and all(c["walk"] is None for c in b["candidates"])
+    assert b["request"]["warmup_max_m"] == 2000
 
 
 def test_api_walk_default_off(client):
@@ -135,10 +139,11 @@ def test_api_walk_default_off(client):
 
 
 def test_day_walk_params(client):
-    off = client.get("/api/day/2030-03-10").json()["candidates"]
-    on = client.get("/api/day/2030-03-10?walk_max_min=10").json()
-    assert on["candidates"] or on["notes"]
-    assert all("walk" in c for c in off)
+    hills_day = client.get("/api/day/2030-03-10?warmup_km=2").json()
+    assert hills_day["request"]["warmup_max_m"] == 2000
+    # without a warm-up distance the plan's "15 min easy" sets it, at easy pace
+    default = client.get("/api/day/2030-03-10").json()
+    assert default["request"]["warmup_max_m"] == pytest.approx(15 * 60 / 405 * 1000, abs=1)
     loop = client.get("/api/day/2030-03-01?walk_max_min=10&loops_walk=true")
     assert loop.status_code == 200 and all("walk" in c for c in loop.json()["candidates"])
 
@@ -158,7 +163,7 @@ def test_plan_feature_on_without_path(graph):
 
 
 def test_hills_uphill_pace_input(client):
-    r = client.post("/api/hills", json={"reps": 3, "minutes": 2, "warm_min": 3, "cool_min": 3, "uphill_pace": 480})
+    r = client.post("/api/hills", json={"reps": 3, "minutes": 2, "warmup_km": 1, "cool_min": 3, "uphill_pace": 480})
     assert r.status_code == 200
     b = r.json()
     assert b["request"]["uphill_pace"] == 480
@@ -166,3 +171,38 @@ def test_hills_uphill_pace_input(client):
         assert 0.9 * 250 <= c["climb"]["length"] <= 1.3 * 250
     d = client.get("/api/day/2030-03-10?uphill_pace=480").json()
     assert d["request"]["uphill_pace"] == 480
+
+
+def _log_records(app):
+    return [json.loads(x) for x in app.state.log.path.read_text().splitlines()]
+
+
+def test_requests_and_ui_events_are_logged(graph, tmp_path):
+    app = server.create_app(graph, log_dir=tmp_path / "logs")
+    with TestClient(app) as c:
+        h = c.post("/api/hills", json={"reps": 3, "minutes": 2, "warmup_km": 1, "cool_min": 3}).json()
+        cid = h["candidates"][0]["id"]
+        assert c.post("/api/log", json={"event": "select", "data": {"id": cid, "rank": 0}}).status_code == 204
+        assert c.post("/api/log", json={"event": "error", "data": {"message": "boom"}}).status_code == 204
+        assert c.post("/api/log", json={"event": "anything", "data": {}}).status_code == 422
+        recs = _log_records(app)
+    kinds = [r["kind"] for r in recs]
+    assert kinds[0] == "start" and "hills" in kinds and "select" in kinds and "error" in kinds
+    hr = next(r for r in recs if r["kind"] == "hills")
+    assert hr["params"]["reps"] == 3 and hr["ms"] >= 0
+    assert hr["result"]["candidates"][0]["id"] == cid and "climb" in hr["result"]["candidates"][0]
+
+
+def test_meta_reports_a_stale_server(graph, tmp_path):
+    watched = tmp_path / "hills.py"
+    watched.write_text("x")
+    app = server.create_app(graph, log_dir=tmp_path / "logs", watch=[watched])
+    with TestClient(app) as c:
+        m = c.get("/api/meta").json()
+        assert m["stale"] is False and m["server_started_at"]
+        import os
+        import time
+        later = time.time() + 5
+        os.utime(watched, (later, later))
+        m = c.get("/api/meta").json()
+        assert m["stale"] is True and m["stale_files"] == ["hills.py"]

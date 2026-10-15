@@ -16,14 +16,12 @@
     <h1>Takas</h1>
   </header>
   <div id="banner" class="prestart" hidden></div>
+  <div id="stale" class="prestart" hidden></div>
 
   <section class="blk" id="settings">
-    <div class="label">Start &amp; warm-up walk</div>
+    <div class="label">Start</div>
     <div class="startrow"><b id="start-info"></b><button id="reset-home" class="btn-outline" type="button">Home</button></div>
     <p class="note">Click the map or drag the pin to move the start.</p>
-    <label class="fld"><span>Walk up to (min)</span><input id="walk-min" type="number" min="0" max="60" step="5" value="20"></label>
-    <label class="chk"><input id="loops-walk" type="checkbox"> Loops may start further away too</label>
-    <p class="note">Hill repeats may always start this far away. 0 turns the walk off.</p>
   </section>
 
   <section class="blk">
@@ -41,6 +39,8 @@
         <select name="terrain"><option value="any">any</option><option value="flat">flat</option><option value="hilly">hilly</option></select></label>
       <label class="fld"><span>Gain target (m)</span><input name="gain_target" type="number" min="0" step="10" placeholder="—"></label>
       <label class="chk"><input name="lit" type="checkbox"> Prefer lit streets</label>
+      <label class="chk"><input id="loops-walk" type="checkbox"> May start further away (walk there)</label>
+      <label class="fld"><span>Walk up to (min)</span><input id="walk-min" type="number" min="0" max="60" step="5" value="20"></label>
       <button class="btn" type="submit">Generate loops</button>
     </form>
 
@@ -49,7 +49,7 @@
       <label class="fld"><span>Minutes up</span><input name="minutes" type="number" step="0.5" min="0.5" value="2"></label>
       <label class="fld"><span>Uphill pace (/km)</span><input id="uphill-pace" name="uphill_pace" type="text" inputmode="numeric" pattern="\d{1,2}:\d{2}" value="5:30"></label>
       <label class="chk"><input name="steep" type="checkbox"> Vert: power-hike (≥12 %)</label>
-      <label class="fld"><span>Warm-up (min)</span><input name="warm_min" type="number" value="15"></label>
+      <label class="fld"><span>Warm-up up to (km)</span><input id="warmup-km" name="warmup_km" type="number" step="0.5" min="0.5" max="15" value="3"></label>
       <label class="fld"><span>Cool-down (min)</span><input name="cool_min" type="number" value="10"></label>
       <button class="btn" type="submit">Find hill repeats</button>
     </form>

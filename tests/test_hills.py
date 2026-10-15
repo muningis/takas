@@ -1,3 +1,5 @@
+import itertools
+
 import pytest
 
 from takas import hills
@@ -48,7 +50,7 @@ def test_bridges_excluded(graph):
 
 def test_session_route_structure(graph):
     r = hills.hills_session(graph, reps=4, minutes=2, min_grade=0.04, kind="hills",
-                            start=HOME, warm_min=3, cool_min=4, warmup_m=(100.0, 800.0))
+                            start=HOME, cool_min=4, warmup_max_m=800.0)
     c = r["candidates"][0]
     s = graph.snap(*HOME)
     arcs = c["_arcs"]
@@ -56,9 +58,9 @@ def test_session_route_structure(graph):
     names = [x["name"] for x in c["segments"]]
     assert names[0] == "warm-up" and names[-1] == "cool-down"
     assert names.count("up") == 4 and names.count("walk down") == 4
-    # the session is defined by time: warm-up and cool-down fill their minutes at easy pace
+    # warm-up is just the way to the foot (within the limit); the cool-down fills its minutes
     seg = {x["name"]: x["to_m"] - x["from_m"] for x in c["segments"]}
-    assert seg["warm-up"] >= 0.85 * 3 * 60 / 405 * 1000
+    assert seg["warm-up"] <= 800 * 1.3
     assert seg["cool-down"] >= 0.85 * 4 * 60 / 405 * 1000
     assert c["gain"] >= 4 * c["climb"]["gain"] * 0.95
     ups = [x for x in c["segments"] if x["name"] == "up"]
@@ -86,49 +88,32 @@ def test_near_climb_not_penalised(graph):
     assert far > at
 
 
-def test_warmup_extended_when_climb_is_close(graph):
-    warm_min = 16  # ~2.4 km, while the planted slope's foot is 1.5 km away
-    w = warm_min * 60 / 405 * 1000  # easy pace 6:45/km
-    r = hills.hills_session(graph, reps=2, minutes=2, min_grade=0.04, kind="hills",
-                            start=HOME, warm_min=warm_min)
-    seg = r["candidates"][0]["segments"][0]
-    assert seg["name"] == "warm-up"
-    assert seg["to_m"] - seg["from_m"] >= 0.85 * w
-
-
-def test_walk_reaches_slope_that_is_otherwise_out_of_range(graph):
-    start = synth.ll(400, 1000)  # 800 m west of the ramp foot
-    kw = {"reps": 3, "minutes": 2, "min_grade": 0.04, "kind": "hills", "start": start, "warm_min": 2}
-    assert hills.hills_session(graph, **kw)["candidates"] == []
-    wmax = 833.0
-    r = hills.hills_session(graph, walk_max_m=wmax, **kw)
+def test_warmup_is_the_direct_way_to_the_foot(graph):
+    from takas.loops import shortest_path
+    r = hills.hills_session(graph, reps=2, minutes=2, min_grade=0.04, kind="hills", start=HOME, warmup_max_m=3000.0)
     c = r["candidates"][0]
-    w = c["walk"]
-    assert w and 0 < w["km"] * 1000 <= wmax + 1
-    s, arcs = graph.snap(*start), c["_arcs"]
-    wnode = int(graph.arc_u[arcs[0]])
-    assert wnode != s and graph.arc_v[arcs[-1]] == wnode
-    assert c["coords"][0] == c["coords"][-1] == w["coords"][-1] == [w["to"]["lat"], w["to"]["lon"]]
-    assert w["coords"][0] == [round(float(graph.node_lat[s]), 6), round(float(graph.node_lon[s]), 6)]
-    # W lies on the west -> foot path, about one warm-up (296 m) before the foot
-    foot_lon = c["climb"]["foot"]["lon"]
-    assert start[1] < w["to"]["lon"] < foot_lon
-    assert foot_lon - w["to"]["lon"] == pytest.approx(296 / (111320 * 0.5887), abs=0.004)
-    assert [x["name"] for x in c["segments"]].count("up") == 3
-    assert abs(c["km"] - 4.0) / 4.0 <= 0.15
+    seg = c["segments"][0]
+    assert seg["name"] == "warm-up" and c["walk"] is None
+    foot = graph.snap(c["climb"]["foot"]["lat"], c["climb"]["foot"]["lon"])
+    direct = shortest_path(graph, graph.cost("mixed", "any"), graph.snap(*HOME), foot)
+    assert seg["to_m"] - seg["from_m"] == pytest.approx(graph.arc_len[direct].sum(), abs=1)
+    w = c["warmup"]
+    assert w["m"] == pytest.approx(seg["to_m"] - seg["from_m"], abs=1)
+    assert w["walk_s"] > w["run_s"] > 0
 
 
-def test_walk_not_used_when_foot_is_within_warmup(graph):
-    r = hills.hills_session(graph, reps=2, minutes=2, min_grade=0.04, kind="hills",
-                            start=HOME, warm_min=16, walk_max_m=833.0)
-    assert r["candidates"][0]["walk"] is None
-    assert graph.arc_u[r["candidates"][0]["_arcs"][0]] == graph.snap(*HOME)
+def test_feet_beyond_the_warmup_limit_are_excluded(graph):
+    kw = {"reps": 3, "minutes": 2, "min_grade": 0.04, "kind": "hills", "start": synth.ll(400, 1000)}
+    far = hills.hills_session(graph, warmup_max_m=500.0, **kw)  # the ramp starts 800 m east
+    assert far["candidates"] == [] and "0.5 km" in far["notes"][0]
+    near = hills.hills_session(graph, warmup_max_m=3000.0, **kw)
+    assert near["candidates"] and all(c["climb"]["dist_from_start"] <= 3000 for c in near["candidates"])
 
 
 def test_repeats_run_up_walk_down_time(graph):
     from takas import config
     r = hills.hills_session(graph, reps=4, minutes=2, min_grade=0.04, kind="hills",
-                            start=HOME, warm_min=3, warmup_m=(100.0, 800.0))
+                            start=HOME, warmup_max_m=800.0)
     c = r["candidates"][0]
     seg = {x["name"]: x["to_m"] - x["from_m"] for x in c["segments"]}
     down_m = seg["walk down"]
@@ -153,7 +138,8 @@ def test_runnable_steepness_preferred(graph):
 def test_hills_cap_excludes_hiking_grades(graph, monkeypatch):
     from takas import config
     monkeypatch.setitem(config.MAX_GRADE, "hills", 0.07)
-    assert hills.find_climbs(graph, HOME, minutes=2, min_grade=0.04, kind="hills", warmup_m=WIN) == []
+    r = hills.find_climbs(graph, HOME, minutes=2, min_grade=0.04, kind="hills", warmup_m=WIN, top=50)
+    assert all(c["grade"] <= 0.07 for c in r)
 
 
 @pytest.mark.parametrize("pace", [330.0, 480.0])
@@ -167,8 +153,51 @@ def test_climb_length_follows_users_uphill_pace(graph, pace):
 
 
 def test_session_echoes_pace_and_card_numbers(graph):
-    r = hills.hills_session(graph, reps=3, minutes=2, min_grade=0.04, kind="hills", start=HOME, warm_min=3,
-                            cool_min=3, warmup_m=(100.0, 800.0), uphill_pace=480.0)
+    r = hills.hills_session(graph, reps=3, minutes=2, min_grade=0.04, kind="hills", start=HOME,
+                            cool_min=3, warmup_max_m=800.0, uphill_pace=480.0)
     assert r["request"]["uphill_pace"] == 480.0
     c = r["candidates"][0]
     assert c["repeat"]["up_s"] == 120 and c["repeat"]["pace"] == 480.0
+
+
+def _crosses_street(g, p, q):
+    same = g.arc_onroad[p] and g.arc_onroad[q] and g.arc_street[p] == g.arc_street[q] >= 0
+    return g.node_street_branches[g.arc_v[p]] >= (4 if same else 1)
+
+
+def test_climbs_never_cross_a_street(graph):
+    r = hills.find_climbs(graph, HOME, minutes=2, min_grade=0.04, kind="hills", warmup_m=(0, 3000), top=50)
+    assert r
+    for c in r:
+        arcs = c["arcs"]
+        assert not graph.arc_crossing[arcs].any()
+        assert not any(_crosses_street(graph, p, q) for p, q in itertools.pairwise(arcs))
+
+
+@pytest.mark.parametrize(("foot", "pace", "mark"), [((1200, 1200), 240.0, "d_split"),
+                                                    ((1500, 1250), 290.0, "d_tee")])
+def test_climb_may_follow_a_street_past_a_split_and_a_t_junction(graph, foot, pace, mark):
+    # starting at street D: 2 min at 4:00/km (~500 m) runs through its split point, at 4:50/km (~414 m)
+    # through its T-junction. Both stay on the same street, so neither is a crossing.
+    from . import synth
+    r = hills.find_climbs(graph, synth.ll(*foot), minutes=2, min_grade=0.04, kind="hills", warmup_m=(0, 20),
+                          uphill_pace=pace)
+    inner = {int(graph.arc_v[a]) for c in r for a in c["arcs"][:-1]}
+    assert graph.node_index[graph.test_marks[mark]] in inner
+
+
+def test_climb_ends_climbing(graph):
+    # a dip is allowed part-way, but the top of a repeat is not a flat side path
+    for pace in (240.0, 290.0, 330.0):
+        for c in hills.find_climbs(graph, HOME, minutes=2, min_grade=0.04, kind="hills", warmup_m=(0, 3000),
+                                   top=50, uphill_pace=pace):
+            assert graph.arc_grade[c["arcs"][-1]] >= 0.02
+
+
+def test_climb_may_start_gently(graph):
+    # a real hill often eases in: the first step only needs to be more than a dip (half the minimum
+    # grade); the whole climb must still average the minimum. Street F starts at 5 % against a 7 % minimum.
+    from . import synth
+    r = hills.find_climbs(graph, synth.ll(1170, 1350), minutes=2, min_grade=0.07, kind="hills",
+                          warmup_m=(0, 20), uphill_pace=343.0)
+    assert r and all(c["grade"] >= 0.07 for c in r)

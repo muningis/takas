@@ -12,6 +12,9 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("build", help="build routing graph from downloaded data")
     s = sub.add_parser("serve", help="run the web app on 127.0.0.1:8742")
     s.add_argument("--port", type=int, default=None)
+    lg = sub.add_parser("logs", help="show the activity log: what was asked, returned and looked at")
+    lg.add_argument("-n", type=int, default=20, help="last N records")
+    lg.add_argument("--json", action="store_true", help="raw JSON lines")
     lp = sub.add_parser("loop", help="quick CLI loop check")
     lp.add_argument("--km", type=float, default=10)
     lp.add_argument("--profile", default="mixed")
@@ -34,6 +37,13 @@ def main(argv: list[str] | None = None) -> None:
         from . import config
 
         uvicorn.run("takas.server:app", host=config.HOST, port=a.port or config.PORT)
+    elif a.cmd == "logs":
+        import json
+
+        from . import config, logs
+
+        for r in logs.ActivityLog(config.LOG_DIR).tail(a.n):
+            print(json.dumps(r, ensure_ascii=False) if a.json else logs.format_record(r))
     elif a.cmd == "loop":
         from . import graph, loops
 

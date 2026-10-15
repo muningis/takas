@@ -103,6 +103,28 @@ path.rt.t1{stroke:var(--r2)}path.rt.t2{stroke:var(--r3)}path.rt.t3{stroke:var(--
 path.rt-halo{stroke:var(--bg)}
 path.rt-walk{stroke:var(--fg);stroke-linecap:round}
 path.rt-up{stroke:var(--bg)}
+/* labelled points: foot / top of a repeat, where the run starts after a walk */
+.pin{position:relative}
+.pin::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--bg);box-shadow:0 0 0 2.5px var(--fg)}
+.pin .lbl{position:absolute;left:50%;bottom:13px;transform:translateX(-50%);white-space:nowrap;
+  font:700 .62rem/1.5 var(--mono);letter-spacing:.08em;text-transform:uppercase;
+  background:var(--fg);color:var(--bg);padding:1px 6px;border-radius:var(--r-tag)}
+.pin.foot .lbl{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1.5px var(--fg)}
+/* direction arrows: paper chevrons riding on the coloured line; the uphill one in ink */
+.arr i{display:block;width:16px;height:16px;line-height:16px;text-align:center;font-style:normal;font-size:11px;
+  color:var(--bg);text-shadow:0 0 1px var(--fg)}
+.arr.up i{font-size:13px;color:var(--fg);text-shadow:0 0 2px var(--bg),0 0 2px var(--bg)}
+.leaflet-tooltip.tip{font:600 .66rem/1.5 var(--mono);letter-spacing:.04em;background:var(--fg);color:var(--bg);
+  border:0;border-radius:var(--r-tag);box-shadow:none}
+.leaflet-tooltip.tip::before{display:none}
+/* map legend in the ledger's label voice */
+.map-legend{background:var(--bg);border:var(--rule-hair) solid var(--line);border-radius:var(--r-cell);padding:8px 10px;
+  display:grid;gap:6px;font:600 .6rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--fg)}
+.map-legend div{display:flex;align-items:center;gap:9px}
+.lg{flex:none;width:30px;height:5px;border-radius:2px;background:var(--r1)}
+.lg.rep{background:repeating-linear-gradient(90deg,var(--r1) 0 6px,var(--bg) 6px 9px);box-shadow:0 0 0 1px var(--r1)}
+.lg.walk{height:0;background:none;border-top:4px dotted var(--fg)}
+.lg.fb{height:0;background:none;border-top:4px dashed var(--r1)}
 .start-pin{background:var(--fg);border:3px solid var(--bg);border-radius:50%;box-shadow:0 0 0 1.5px var(--fg)}
 
 @media (max-width:760px){

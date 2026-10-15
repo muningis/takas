@@ -11,16 +11,23 @@ Online OSM tiles are used only as the map background.
 - **Loops** of a target distance (±3 %) on `road`, `mixed` or `trail` surfaces; `flat`, `any` or
   `hilly` terrain with an optional gain target; optionally prefer lit streets. Up to four diverse
   candidates, ranked by distance fit, retracing, surface and terrain.
-- **Hill repeats**: warm-up + N × M minutes uphill + cool-down, all by time. A hill qualifies when
-  it is steep (≥ 8 %, ideally ~10 %; Vert mode ≥ 12 % for power-hiking) and long enough for M
-  minutes at *your* uphill pace. You run up, walk down.
-- **Warm-up walk**: a run may start up to N minutes' walk away when that reaches a better hill (or,
-  if you tick the box, a better loop). The walk is drawn dotted; GPX comes as run-only or walk + run.
+- **Hill repeats**: warm-up → N × M minutes uphill → cool-down. The warm-up is simply getting to
+  the hill, run or walked, so it is a distance limit: the hill's foot must be within it, and the
+  nearer of two equally good hills wins. A hill qualifies when it is steep (≥ 8 %, ideally ~10 %;
+  Vert mode ≥ 12 % for power-hiking) and offers M minutes of climbing at *your* uphill pace. You run
+  up, walk down. A repeat never crosses a street: it may follow one street past a T-junction, never
+  through a crossroads or a pedestrian crossing.
+- **Loops may start further away**: tick the box in the Loop form to let a loop start up to N
+  minutes' walk away when that reaches better ground. The walk is drawn dotted; GPX comes as
+  run-only or walk + run.
 - **Start point**: click the map or drag the pin; it is kept in the browser's localStorage.
 - **Plan day** (optional, off by default): turn one day of a training-plan file into a route
   request. See [docs/plan.md](docs/plan.md) for the file format and the mapping.
 
 ## Setup
+
+Step-by-step guide with checks and troubleshooting, written to be followed by people and AI
+agents alike: **[docs/SETUP.md](docs/SETUP.md)**. The short version:
 
 ```sh
 uv sync                 # Python 3.13
@@ -35,6 +42,20 @@ Copy [`takas.example.toml`](takas.example.toml) to `takas.toml` (gitignored) to 
 point, the graph radius and the optional Plan day feature. Rebuild the graph after changing `home`
 or `radius_km`. Environment overrides: `TAKAS_HOME="lat,lon"`, `TAKAS_FEATURE_PLAN=1`,
 `TAKAS_PLAN=/path/to/plan.json`, `TAKAS_CONFIG=/path/to/takas.toml`.
+
+## Activity log
+
+Every request, its result (with each route thinned to ~80 points), the candidate you select, GPX
+downloads and browser errors go to `data/logs/takas.jsonl` (gitignored: it contains your start
+point; override the folder with `TAKAS_LOGS`). Read it with:
+
+```sh
+uv run takas logs -n 30          # readable
+uv run takas logs -n 30 --json   # raw records
+```
+
+The page also warns when the running server is older than the code or graph on disk: restart
+`takas serve` to pick them up.
 
 ## Refreshing data
 
@@ -65,7 +86,7 @@ forest canopy shows up as fake climbs. The UI shows a banner and the hill finder
 ```sh
 uv run pytest                      # synthetic-grid tests; no downloaded data needed
 uvx ruff check src tests
-typos src tests README.md docs
+uvx typos src tests README.md docs
 ```
 
 ## Licences and attribution
